@@ -1,6 +1,6 @@
 // ============================================
-// MESSAGE HANDLER v3.0 - CEREBRO DEL BOT
-// Flujo dinámico: confirma + pregunta en un mensaje
+// MESSAGE HANDLER v3.1 - CEREBRO DEL BOT
+// Flujo dinámico + KM exacto + Días con botones
 // ============================================
 
 const wa = require("./whatsappService");
@@ -411,7 +411,7 @@ async function handleTurnoOtroServicio(phone, msg, ses) {
   );
 }
 
-// PASO 4: Servicio extra → km
+// PASO 4: Servicio extra → km (TEXTO LIBRE)
 async function handleTurnoServicioExtra(phone, msg, ses) {
   if (msg.id === "srv_extra_si") {
     session.setState(phone, "turno_servicio_extra_input");
@@ -419,33 +419,15 @@ async function handleTurnoServicioExtra(phone, msg, ses) {
     return;
   }
 
-  // Dijo que no → directo a km
+  // Dijo que no → directo a km (TEXTO LIBRE)
   session.setState(phone, "turno_km");
-  await wa.sendList(
+  await wa.sendText(
     phone,
-    `📊 ¿En qué kilometraje está tu ${ses.turnoData.modelo}?`,
-    "📊 Elegir km",
-    [
-      {
-        title: "Kilometraje",
-        rows: [
-          { id: "km_10000", title: "Menos de 10.000 km" },
-          { id: "km_20000", title: "10.000 - 20.000 km" },
-          { id: "km_30000", title: "20.000 - 30.000 km" },
-          { id: "km_40000", title: "30.000 - 40.000 km" },
-          { id: "km_50000", title: "40.000 - 50.000 km" },
-          { id: "km_60000", title: "50.000 - 60.000 km" },
-          { id: "km_70000", title: "60.000 - 70.000 km" },
-          { id: "km_80000", title: "70.000 - 80.000 km" },
-          { id: "km_90000", title: "80.000 - 90.000 km" },
-          { id: "km_100000", title: "Más de 100.000 km" },
-        ],
-      },
-    ]
+    `📊 ¿En qué kilometraje está tu ${ses.turnoData.modelo}?\n\nEscribí el número exacto (ejemplo: 15234) 👇`
   );
 }
 
-// Input de servicio extra → km
+// Input de servicio extra → km (TEXTO LIBRE)
 async function handleTurnoServicioExtraInput(phone, msg, ses) {
   const interruption = checkInterruption(msg.text, ses.state, ses.turnoData);
   if (interruption) {
@@ -457,40 +439,33 @@ async function handleTurnoServicioExtraInput(phone, msg, ses) {
   session.setTurnoData(phone, { servicioExtra: extra });
   console.log(`📝 SERVICIO EXTRA: ${extra}`);
 
-  // DINÁMICO: confirma extra + pide km
+  // DINÁMICO: confirma extra + pide km (TEXTO LIBRE)
   session.setState(phone, "turno_km");
-  await wa.sendList(
+  await wa.sendText(
     phone,
-    `📝 Anotado: "${extra}". Lo revisamos también. 🙌\n\n📊 ¿En qué kilometraje está tu ${ses.turnoData.modelo}?`,
-    "📊 Elegir km",
-    [
-      {
-        title: "Kilometraje",
-        rows: [
-          { id: "km_10000", title: "Menos de 10.000 km" },
-          { id: "km_20000", title: "10.000 - 20.000 km" },
-          { id: "km_30000", title: "20.000 - 30.000 km" },
-          { id: "km_40000", title: "30.000 - 40.000 km" },
-          { id: "km_50000", title: "40.000 - 50.000 km" },
-          { id: "km_60000", title: "50.000 - 60.000 km" },
-          { id: "km_70000", title: "60.000 - 70.000 km" },
-          { id: "km_80000", title: "70.000 - 80.000 km" },
-          { id: "km_90000", title: "80.000 - 90.000 km" },
-          { id: "km_100000", title: "Más de 100.000 km" },
-        ],
-      },
-    ]
+    `📝 Anotado: "${extra}". Lo revisamos también. 🙌\n\n📊 ¿En qué kilometraje está tu ${ses.turnoData.modelo}?\n\nEscribí el número exacto (ejemplo: 15234) 👇`
   );
 }
 
-// PASO 5: Km → patente
+// PASO 5: Km → patente (CON VALIDACIÓN)
 async function handleTurnoKm(phone, msg, ses) {
-  if (msg.type === "text" && !msg.id) {
-    await wa.sendText(phone, "Tocá el botón *📊 Elegir km* para seleccionar el kilometraje. 😊");
+  const interruption = checkInterruption(msg.text, ses.state, ses.turnoData);
+  if (interruption) {
+    await wa.sendText(phone, interruption);
     return;
   }
 
-  const km = msg.text;
+  // Validar que sea un número
+  const kmText = msg.text.replace(/\D/g, ""); // saca todo lo que no sea número
+  if (!kmText || kmText.length < 3) {
+    await wa.sendText(
+      phone,
+      "🤔 Necesito un número válido. Escribí el kilometraje exacto (ejemplo: 15234) 👇"
+    );
+    return;
+  }
+
+  const km = kmText + " km";
   session.setTurnoData(phone, { km });
   session.setState(phone, "turno_patente");
 
@@ -503,7 +478,7 @@ async function handleTurnoKm(phone, msg, ses) {
   );
 }
 
-// PASO 6: Patente → días disponibles
+// PASO 6: Patente → días disponibles (BOTONES SIMPLES)
 async function handleTurnoPatente(phone, msg, ses) {
   const interruption = checkInterruption(msg.text, ses.state, ses.turnoData);
   if (interruption) {
@@ -523,17 +498,24 @@ async function handleTurnoPatente(phone, msg, ses) {
   session.setTurnoData(phone, { patente });
   session.setState(phone, "turno_dia");
 
-  // DINÁMICO: confirma patente + muestra días disponibles
-  await wa.sendDiaPicker(
+  // DINÁMICO: confirma patente + muestra días (BOTONES)
+  await wa.sendText(
     phone,
     `🔢 Patente *${patente}*, anotada. ✅\n\n📅 ¿Qué día te queda mejor para traer tu ${ses.turnoData.modelo}?`
   );
+  
+  // Generar 4 días disponibles
+  await wa.sendButtons(phone, "Elegí un día:", [
+    { id: "dia_lunes", title: "📅 Lunes 10/02" },
+    { id: "dia_martes", title: "📅 Martes 11/02" },
+    { id: "dia_miercoles", title: "📅 Miércoles 12/02" },
+  ]);
 }
 
 // PASO 7: Día → horario
 async function handleTurnoDia(phone, msg, ses) {
   if (msg.type === "text" && !msg.id) {
-    await wa.sendText(phone, "Elegí un día de la lista tocando *📅 Ver días disponibles*. 😊");
+    await wa.sendText(phone, "Elegí un día de los botones disponibles. 😊");
     return;
   }
 
