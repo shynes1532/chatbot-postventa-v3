@@ -3,16 +3,28 @@
 // ============================================
 
 const { google } = require('googleapis');
-const path = require('path');
 
 const SPREADSHEET_ID = '1ZBluKJfWOO0jooVdS8N8oGoKawjae4iV';
 
 // Configurar autenticación
 async function getAuthClient() {
+  let credentials;
+  
+  // En Railway: leer desde variable de entorno
+  if (process.env.GOOGLE_CREDENTIALS) {
+    credentials = JSON.parse(process.env.GOOGLE_CREDENTIALS);
+  } 
+  // En local: leer desde archivo
+  else {
+    const path = require('path');
+    credentials = require(path.join(__dirname, '..', 'credentials.json'));
+  }
+
   const auth = new google.auth.GoogleAuth({
-    keyFile: path.join(__dirname, '..', 'credentials.json'),
+    credentials: credentials,
     scopes: ['https://www.googleapis.com/auth/spreadsheets'],
   });
+  
   return await auth.getClient();
 }
 
