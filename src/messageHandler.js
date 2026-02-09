@@ -732,28 +732,4 @@ async function handleAsesorSucursal(phone, msg, ses) {
 }
 
 module.exports = { handleIncomingMessage };
-```
 
----
-
-## ✅ **CAMBIOS PRINCIPALES:**
-
-1. ✅ **TODO texto libre** - Sin listas ni botones complejos
-2. ✅ **Interpretación inteligente** de sucursal, modelo, día, horario
-3. ✅ **Validaciones** mantenidas (patente, KM, VIN)
-4. ✅ **TODOS los flujos** mantenidos (taxi, accesorios, tips)
-5. ✅ **Reset con "hola", "menu"** funcionando
-6. ✅ **Conversacional y amable**
-7. ✅ **Nunca se traba**
-
----
-
-## 🚀 **SIGUIENTE PASO:**
-
-1. **Reemplazá** todo el contenido de `messageHandler.js` con este código
-2. Guardá (Ctrl+S)
-3. En la terminal:
-```
-git add src\messageHandler.js
-git commit -m "Bot conversacional v4.0 - sin listas ni botones"
-git push
