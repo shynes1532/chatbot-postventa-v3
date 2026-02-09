@@ -346,7 +346,7 @@ async function handleTurnoModelo(phone, msg, ses) {
         title: "Servicios",
         rows: [
           { id: "srv_programado", title: "Service programado", description: "Cada 10.000 km / 1 año" },
-          { id: "srv_aceite", title: "Cambio de aceite y filtro" },
+          { id: "srv_aceite", title: "Cambio aceite y filtro" },
           { id: "srv_neumaticos", title: "Neumáticos" },
           { id: "srv_frenos", title: "Frenos" },
           { id: "srv_bateria", title: "Batería" },
@@ -712,7 +712,7 @@ async function handleInfoMenu(phone, msg, ses) {
 
   const responses = {
     info_mant_prog: `🔧 *Mantenimiento Programado*\n\n✅ Cada *10.000 km o 1 año* (lo que ocurra primero)\n\nIncluye cambios de aceite y filtros, inspección completa según grilla del modelo, ajustes y diagnóstico.\n\n🛡️ Hacerlo en red oficial *preserva tu garantía*.`,
-    info_srv_rapido: `⚡ *Servicios Rápidos*\n\nCambio de aceite y filtro, revisión de niveles, batería, neumáticos, rotación.\n\n⏱️ Se hacen en el menor tiempo posible para que no pierdas el día.`,
+    info_srv_rapido: `⚡ *Servicios Rápidos*\n\nCambio aceite y filtro, revisión de niveles, batería, neumáticos, rotación.\n\n⏱️ Se hacen en el menor tiempo posible para que no pierdas el día.`,
     info_srv_esenciales: `🏗️ *Servicios Esenciales*\n\nTren delantero, suspensión, frenos, transmisión, refrigeración, aire acondicionado.\n\n⚠️ Si tu vehículo está en garantía, siempre usá *repuestos Mopar* para no perderla.`,
     info_lubricantes: `🛢️ *Lubricantes Mopar*\n\nAceites originales de fábrica para FIAT.\n\n✅ Calidad garantizada\n✅ Intervalos según manual\n✅ Preservan garantía`,
     info_flexcare: `💸 *FlexCare*\n\nDescuentos de *hasta 35%* en mantenimiento.\n\n✅ Fijás costos futuros\n✅ Mano de obra especializada\n✅ Repuestos Mopar\n\n¡La forma más inteligente de ahorrar! 💰`,
