@@ -1,6 +1,6 @@
 // ============================================
-// MESSAGE HANDLER v3.1 - CEREBRO DEL BOT
-// Flujo dinámico + KM exacto + Días con botones
+// MESSAGE HANDLER v4.0 - BOT CONVERSACIONAL
+// Sin listas ni botones complejos - Solo texto
 // ============================================
 
 const wa = require("./whatsappService");
@@ -54,10 +54,44 @@ function getKmTip(km) {
   return "";
 }
 
-function parseSucursal(id) {
-  if (id === "suc_ushuaia") return "Ushuaia";
-  if (id === "suc_rio_grande") return "Río Grande";
-  return id.includes("ushuaia") ? "Ushuaia" : "Río Grande";
+function parseSucursal(text) {
+  const lower = text.toLowerCase();
+  if (/ushuaia|ush/i.test(lower)) return "Ushuaia";
+  if (/rio\s*grande|rg|grande/i.test(lower)) return "Río Grande";
+  return null;
+}
+
+function parseModelo(text) {
+  const lower = text.toLowerCase();
+  if (/600/.test(lower)) return "FIAT 600";
+  if (/argo/i.test(lower)) return "Argo";
+  if (/cronos/i.test(lower)) return "Cronos";
+  if (/ducato/i.test(lower)) return "Ducato";
+  if (/fiorino/i.test(lower)) return "Fiorino";
+  if (/fastback/i.test(lower)) return "Fastback";
+  if (/mobi/i.test(lower)) return "Mobi";
+  if (/pulse/i.test(lower)) return "Pulse";
+  if (/strada/i.test(lower)) return "Strada";
+  if (/toro/i.test(lower)) return "Toro";
+  return null;
+}
+
+function parseDia(text) {
+  const lower = text.toLowerCase();
+  if (/lun/i.test(lower)) return "Lunes";
+  if (/mar/i.test(lower)) return "Martes";
+  if (/mie|miércoles|miercoles/i.test(lower)) return "Miércoles";
+  if (/jue/i.test(lower)) return "Jueves";
+  if (/vie/i.test(lower)) return "Viernes";
+  if (/sab|sábado|sabado/i.test(lower)) return "Sábado";
+  return null;
+}
+
+function parseHorario(text) {
+  const lower = text.toLowerCase();
+  if (/ma[ñn]ana|temprano|9|10|11|12/i.test(lower)) return "Mañana (9:30-12:30)";
+  if (/tarde|15|16|17|18|19|20/i.test(lower)) return "Tarde (15:00-20:00)";
+  return null;
 }
 
 function isValidPatente(text) {
@@ -80,40 +114,22 @@ async function handleIncomingMessage(phone, name, message) {
     session.updateSession(phone, { greeted: true });
     await wa.sendText(
       phone,
-      `¡Hola ${name}! 👋 Soy el asistente virtual de *Liendo Automotores LASAC*, concesionario oficial FIAT en Tierra del Fuego.\n\n🏔️ Ushuaia | 🌊 Río Grande\n\nEstoy acá para ayudarte con turnos, consultas de reparación, info de mantenimiento y todo lo que necesites. ¡Vamos! 🚗`
+      `¡Hola ${name}! 👋 Soy el asistente virtual de *Liendo Automotores LASAC*, concesionario oficial FIAT en Tierra del Fuego.\n\n🏔️ Ushuaia | 🌊 Río Grande\n\nEstoy acá para ayudarte con turnos, consultas de reparación, info de mantenimiento y todo lo que necesites. ¡Vamos! 🚗\n\n¿Qué necesitás?\n\n📅 *Agendar turno*\n🔍 *Estado de tu vehículo*\nℹ️ *Info de mantenimiento*\n🚨 *Emergencia* (Mopar 24/7)\n💰 *Packs MVP*\n🔩 *Repuestos*\n📋 *Recall*\n🛡️ *Garantía*\n👤 *Hablar con asesor*`
     );
-    await wa.sendMainMenu(phone);
     return;
   }
 
-  // === TEXTO LIBRE EN MENÚ PRINCIPAL ===
-  if (msg.type === "text" && ses.state === "main_menu") {
+  // === RESET CON "HOLA", "MENU", ETC ===
+  if (msg.type === "text") {
     const lower = msg.text.toLowerCase();
-    if (/menu|men[uú]|inicio|ayuda|hola|buenos|buen[oa]s/.test(lower)) {
-      await wa.sendMainMenu(phone);
+    if (/^(menu|men[uú]|inicio|ayuda|hola|buenos|buen[oa]s)$/i.test(lower.trim())) {
+      session.setState(phone, "main_menu");
+      await wa.sendText(
+        phone,
+        `¿En qué te puedo ayudar? 😊\n\n📅 *Agendar turno*\n🔍 *Estado de tu vehículo*\nℹ️ *Info de mantenimiento*\n🚨 *Emergencia*\n💰 *Packs MVP*\n🔩 *Repuestos*\n📋 *Recall*\n🛡️ *Garantía*\n👤 *Hablar con asesor*`
+      );
       return;
     }
-    // Si escribe algo random en main_menu, mostrar menú
-    await wa.sendText(phone, "¡Hola! 😊 Elegí una opción del menú para que pueda ayudarte:");
-    await wa.sendMainMenu(phone);
-    return;
-  }
-
-  // === POST-ACCIÓN ===
-  if (msg.id === "post_menu") {
-    session.setState(phone, "main_menu");
-    await wa.sendMainMenu(phone);
-    return;
-  }
-  if (msg.id === "post_asesor") {
-    session.setState(phone, "asesor_sucursal");
-    await wa.sendSucursalPicker(phone, "👤 Te conecto con un asesor. ¿De qué sucursal?");
-    return;
-  }
-  if (msg.id === "post_listo") {
-    await wa.sendText(phone, "¡Perfecto! Estoy acá cuando me necesites. ¡Que tengas un excelente día! 😊🚗");
-    session.resetSession(phone);
-    return;
   }
 
   // === ROUTER POR ESTADO ===
@@ -130,14 +146,8 @@ async function handleIncomingMessage(phone, name, message) {
     case "turno_servicio":
       await handleTurnoServicio(phone, msg, ses);
       break;
-    case "turno_otro_servicio":
-      await handleTurnoOtroServicio(phone, msg, ses);
-      break;
     case "turno_servicio_extra":
       await handleTurnoServicioExtra(phone, msg, ses);
-      break;
-    case "turno_servicio_extra_input":
-      await handleTurnoServicioExtraInput(phone, msg, ses);
       break;
     case "turno_km":
       await handleTurnoKm(phone, msg, ses);
@@ -166,17 +176,11 @@ async function handleIncomingMessage(phone, name, message) {
     case "estado_extra":
       await handleEstadoExtra(phone, msg, ses);
       break;
-    case "estado_extra_input":
-      await handleEstadoExtraInput(phone, msg, ses);
+    case "info_input":
+      await handleInfoInput(phone, msg, ses);
       break;
-    case "info_menu":
-      await handleInfoMenu(phone, msg, ses);
-      break;
-    case "mvp_option":
-      await handleMVPOption(phone, msg, ses);
-      break;
-    case "repuestos_menu":
-      await handleRepuestosMenu(phone, msg, ses);
+    case "mvp_input":
+      await handleMVPInput(phone, msg, ses);
       break;
     case "repuestos_modelo":
       await handleRepuestosModelo(phone, msg, ses);
@@ -187,18 +191,18 @@ async function handleIncomingMessage(phone, name, message) {
     case "recall_input":
       await handleRecallInput(phone, msg, ses);
       break;
-    case "garantia_menu":
-      await handleGarantiaMenu(phone, msg, ses);
-      break;
-    case "garantia_eurorepar":
-      await handleGarantiaEurorepar(phone, msg, ses);
+    case "garantia_input":
+      await handleGarantiaInput(phone, msg, ses);
       break;
     case "asesor_sucursal":
       await handleAsesorSucursal(phone, msg, ses);
       break;
     default:
       session.setState(phone, "main_menu");
-      await wa.sendMainMenu(phone);
+      await wa.sendText(
+        phone,
+        `¿En qué te puedo ayudar? 😊\n\n📅 *Agendar turno*\n🔍 *Estado*\nℹ️ *Info*\n🚨 *Emergencia*\n💰 *MVP*\n🔩 *Repuestos*\n📋 *Recall*\n🛡️ *Garantía*\n👤 *Asesor*`
+      );
   }
 }
 
@@ -206,169 +210,140 @@ async function handleIncomingMessage(phone, name, message) {
 // MENÚ PRINCIPAL
 // ═══════════════════════════════════════════
 async function handleMainMenu(phone, msg, ses) {
-  switch (msg.id) {
-    case "menu_turno":
-      session.setState(phone, "turno_sucursal");
-      await wa.sendSucursalPicker(phone, "📅 Agendemos tu turno. ¿En qué sucursal querés atenderte?");
-      break;
-    case "menu_estado":
-      session.setState(phone, "estado_input");
-      await wa.sendText(
-        phone,
-        "🔍 Consultemos el estado de tu vehículo.\n\nPasame tu *patente* o *número de orden de trabajo (OT)* 👇"
-      );
-      break;
-    case "menu_info":
-      session.setState(phone, "info_menu");
-      await wa.sendList(phone, "ℹ️ ¿Qué te gustaría saber?", "📋 Ver opciones", [
-        {
-          title: "Información",
-          rows: [
-            { id: "info_mant_prog", title: "Mantenimiento programado", description: "Cada 10.000 km o 1 año" },
-            { id: "info_srv_rapido", title: "Servicios rápidos", description: "Aceite, filtros, neumáticos" },
-            { id: "info_srv_esenciales", title: "Servicios esenciales", description: "Tren delantero, frenos, etc" },
-            { id: "info_lubricantes", title: "Lubricantes Mopar", description: "Aceites originales" },
-            { id: "info_flexcare", title: "FlexCare (hasta -35%)", description: "Programa de descuentos" },
-            { id: "volver_menu", title: "← Volver al menú" },
-          ],
-        },
-      ]);
-      break;
-    case "menu_emergencia":
-      await wa.sendText(
-        phone,
-        `🚨 *Mopar Assistance 24/7*\n\nTenés asistencia las 24 horas, todos los días.\n\n📞 *0800-777-8000* → Opción 1\n\nGrúa, cambio de rueda, auxilio en ruta, cerrajería. ¡Siempre disponible! 🛡️`
-      );
-      await wa.sendPostAction(phone, "¿Algo más?");
-      break;
-    case "menu_mvp":
-      session.setState(phone, "mvp_option");
-      await wa.sendButtons(
-        phone,
-        "💰 *Packs MVP (Mopar Vehicle Protection)*\n\nPrepagá tu mantenimiento y fijá el precio. Incluye mano de obra y repuestos Mopar.\n\n¿Qué pack te interesa?",
-        [
-          { id: "mvp_2", title: "📦 Pack 2 revisiones" },
-          { id: "mvp_3", title: "📦 Pack 3 revisiones" },
-          { id: "mvp_4", title: "📦 Pack 4 revisiones" },
-        ]
-      );
-      break;
-    case "menu_repuestos":
-      session.setState(phone, "repuestos_menu");
-      await wa.sendButtons(phone, "🔩 *Repuestos y accesorios Mopar*\n\n¿Qué necesitás?", [
-        { id: "rep_consulta", title: "🔍 Consultar repuesto" },
-        { id: "rep_accesorio", title: "✨ Ver accesorios" },
-        { id: "rep_catalogo", title: "📕 Catálogos" },
-      ]);
-      break;
-    case "menu_recall":
-      session.setState(phone, "recall_input");
-      await wa.sendText(
-        phone,
-        `📋 *Consulta de Recall*\n\nEl recall es cuando la fábrica detecta un tema de seguridad y convoca a los propietarios para solucionarlo *sin costo*.\n\nNecesito el *VIN (número de chasis)*.\n\n🔍 Lo encontrás en la base del parabrisas, título del vehículo o seguro.\n\n✏️ Escribilo acá 👇`
-      );
-      break;
-    case "menu_garantia":
-      session.setState(phone, "garantia_menu");
-      await wa.sendButtons(phone, "🛡️ *Garantía FIAT*\n\n¿Qué querés saber?", [
-        { id: "gar_cobertura", title: "📋 ¿Qué cubre?" },
-        { id: "gar_eurorepar", title: "⚠️ Eurorepar y garantía" },
-        { id: "gar_reclamo", title: "📝 Hacer un reclamo" },
-      ]);
-      break;
-    case "menu_asesor":
-      session.setState(phone, "asesor_sucursal");
-      await wa.sendSucursalPicker(phone, "👤 Te conecto con un asesor. ¿De qué sucursal?");
-      break;
-    default:
-      await wa.sendMainMenu(phone);
+  const lower = msg.text.toLowerCase();
+
+  // Turno
+  if (/turno|agendar|cita|reserv/i.test(lower)) {
+    session.setState(phone, "turno_sucursal");
+    await wa.sendText(phone, "📅 Perfecto. ¿En qué sucursal querés atenderte? (*Ushuaia* o *Río Grande*)");
+    return;
   }
+
+  // Estado
+  if (/estado|consulta|orden|ot|reparaci[oó]n/i.test(lower)) {
+    session.setState(phone, "estado_input");
+    await wa.sendText(phone, "🔍 Dale, pasame tu *patente* o *número de OT* para buscar el estado de tu vehículo 👇");
+    return;
+  }
+
+  // Info
+  if (/info|informaci[oó]n|mantenimiento|service/i.test(lower)) {
+    session.setState(phone, "info_input");
+    await wa.sendText(
+      phone,
+      `ℹ️ ¿Sobre qué querés saber?\n\n• *Mantenimiento programado*\n• *Servicios rápidos*\n• *Lubricantes Mopar*\n• *FlexCare* (hasta -35%)\n\nEscribí el tema que te interesa 👇`
+    );
+    return;
+  }
+
+  // Emergencia
+  if (/emergencia|urgente|auxilio|grúa|gru[aá]/i.test(lower)) {
+    await wa.sendText(
+      phone,
+      `🚨 *Mopar Assistance 24/7*\n\nTenés asistencia las 24 horas, todos los días.\n\n📞 *0800-777-8000* → Opción 1\n\nGrúa, cambio de rueda, auxilio en ruta, cerrajería. ¡Siempre disponible! 🛡️`
+    );
+    await wa.sendText(phone, "¿Algo más en lo que te pueda ayudar? (escribí *menú* para ver opciones)");
+    return;
+  }
+
+  // MVP
+  if (/mvp|pack|prepag|vehicle protection/i.test(lower)) {
+    session.setState(phone, "mvp_input");
+    await wa.sendText(
+      phone,
+      `💰 *Packs MVP (Mopar Vehicle Protection)*\n\nPrepagá tu mantenimiento y fijá el precio. Incluye mano de obra y repuestos Mopar.\n\n📦 Pack 2 revisiones\n📦 Pack 3 revisiones\n📦 Pack 4 revisiones\n\n¿Cuál te interesa? (escribí 2, 3 o 4)`
+    );
+    return;
+  }
+
+  // Repuestos
+  if (/repuesto|accesorio|pieza|mopar/i.test(lower)) {
+    session.setState(phone, "repuestos_modelo");
+    await wa.sendText(phone, "🔩 Dale. ¿Para qué modelo FIAT necesitás el repuesto o accesorio?");
+    return;
+  }
+
+  // Recall
+  if (/recall|retiro|campa[ñn]a|seguridad/i.test(lower)) {
+    session.setState(phone, "recall_input");
+    await wa.sendText(
+      phone,
+      `📋 *Consulta de Recall*\n\nEl recall es cuando la fábrica detecta un tema de seguridad y convoca a los propietarios para solucionarlo *sin costo*.\n\nPasame el *VIN (número de chasis)* de tu vehículo.\n\n🔍 Lo encontrás en la base del parabrisas, título o seguro 👇`
+    );
+    return;
+  }
+
+  // Garantía
+  if (/garant[íi]a|cobertura|eurorepar/i.test(lower)) {
+    session.setState(phone, "garantia_input");
+    await wa.sendText(
+      phone,
+      `🛡️ *Garantía FIAT*\n\n¿Qué querés saber?\n\n• *Cobertura*\n• *Eurorepar y garantía*\n• *Hacer un reclamo*\n\nEscribí el tema 👇`
+    );
+    return;
+  }
+
+  // Asesor
+  if (/asesor|persona|humano|atenci[oó]n|hablar/i.test(lower)) {
+    session.setState(phone, "asesor_sucursal");
+    await wa.sendText(phone, "👤 Perfecto. ¿De qué sucursal querés hablar con un asesor? (*Ushuaia* o *Río Grande*)");
+    return;
+  }
+
+  // No entendió
+  await wa.sendText(
+    phone,
+    `No te entendí bien. ¿Qué necesitás? 😊\n\n📅 *Turno*\n🔍 *Estado*\nℹ️ *Info*\n🚨 *Emergencia*\n💰 *MVP*\n🔩 *Repuestos*\n📋 *Recall*\n🛡️ *Garantía*\n👤 *Asesor*`
+  );
 }
 
 // ═══════════════════════════════════════════
 // FLUJO: AGENDAR TURNO
 // ═══════════════════════════════════════════
 
-// PASO 1: Sucursal → directo a modelo
 async function handleTurnoSucursal(phone, msg, ses) {
-  if (!msg.id || !msg.id.startsWith("suc_")) {
-    await wa.sendSucursalPicker(phone, "Elegí una sucursal tocando el botón 👇");
+  const interruption = checkInterruption(msg.text, ses.state, ses.turnoData);
+  if (interruption) {
+    await wa.sendText(phone, interruption);
     return;
   }
 
-  const suc = parseSucursal(msg.id);
+  const suc = parseSucursal(msg.text);
+  if (!suc) {
+    await wa.sendText(phone, "🤔 No te entendí. ¿*Ushuaia* o *Río Grande*?");
+    return;
+  }
+
   session.setTurnoData(phone, { sucursal: suc });
   session.setState(phone, "turno_modelo");
-
-  // DINÁMICO: confirma sucursal + pide modelo en un solo mensaje
-  await wa.sendList(
-    phone,
-    `📍 ${suc}, perfecto. 🚗 ¿Qué modelo de FIAT tenés?`,
-    "🚗 Elegir modelo",
-    [
-      {
-        title: "Modelos",
-        rows: [
-          { id: "modelo_600", title: "FIAT 600" },
-          { id: "modelo_argo", title: "Argo" },
-          { id: "modelo_cronos", title: "Cronos" },
-          { id: "modelo_ducato", title: "Ducato" },
-          { id: "modelo_fiorino", title: "Fiorino" },
-          { id: "modelo_fastback", title: "Fastback" },
-          { id: "modelo_mobi", title: "Mobi" },
-          { id: "modelo_pulse", title: "Pulse" },
-          { id: "modelo_strada", title: "Strada" },
-          { id: "modelo_toro", title: "Toro" },
-        ],
-      },
-    ]
-  );
+  await wa.sendText(phone, `📍 ${suc}, perfecto. 🚗 ¿Qué modelo de FIAT tenés?\n\n(Argo, Cronos, Pulse, Strada, Toro, etc)`);
 }
 
-// PASO 2: Modelo → directo a servicio
 async function handleTurnoModelo(phone, msg, ses) {
-  if (msg.type === "text" && !msg.id) {
-    await wa.sendText(phone, "Tocá el botón *🚗 Elegir modelo* para seleccionar tu FIAT 😊");
+  const interruption = checkInterruption(msg.text, ses.state, ses.turnoData);
+  if (interruption) {
+    await wa.sendText(phone, interruption);
     return;
   }
 
-  const modelo = msg.text;
+  const modelo = parseModelo(msg.text);
+  if (!modelo) {
+    await wa.sendText(phone, "🤔 No reconocí ese modelo. ¿Podés escribirlo de nuevo? (Argo, Cronos, Pulse, Strada, Toro, Mobi, etc)");
+    return;
+  }
+
   session.setTurnoData(phone, { modelo });
   session.setState(phone, "turno_servicio");
-
-  // DINÁMICO: confirma modelo + pide servicio
-  await wa.sendList(
+  await wa.sendText(
     phone,
-    `🚗 ${modelo}, ¡qué lindo vehículo! 😍\n\n🔧 ¿Qué servicio necesitás?`,
-    "🔧 Elegir servicio",
-    [
-      {
-        title: "Servicios",
-        rows: [
-          { id: "srv_programado", title: "Service programado", description: "Cada 10.000 km / 1 año" },
-          { id: "srv_aceite", title: "Cambio aceite y filtro" },
-          { id: "srv_neumaticos", title: "Neumáticos" },
-          { id: "srv_frenos", title: "Frenos" },
-          { id: "srv_bateria", title: "Batería" },
-          { id: "srv_alineacion", title: "Alineación y balanceo" },
-          { id: "srv_diagnostico", title: "Diagnóstico", description: "Falla, ruido, luz tablero" },
-          { id: "srv_otro", title: "Otro servicio" },
-        ],
-      },
-    ]
+    `🚗 ${modelo}, ¡qué lindo! 😍\n\n🔧 ¿Qué servicio necesitás?\n\n• Service programado\n• Cambio aceite\n• Neumáticos\n• Frenos\n• Diagnóstico\n• Otro\n\nEscribí el servicio 👇`
   );
 }
 
-// PASO 3: Servicio → pregunta extra
 async function handleTurnoServicio(phone, msg, ses) {
-  if (msg.type === "text" && !msg.id) {
-    await wa.sendText(phone, "Tocá el botón *🔧 Elegir servicio* para seleccionar. 😊");
-    return;
-  }
-
-  if (msg.id === "srv_otro") {
-    session.setState(phone, "turno_otro_servicio");
-    await wa.sendText(phone, "📝 Contame qué servicio necesitás 👇");
+  const interruption = checkInterruption(msg.text, ses.state, ses.turnoData);
+  if (interruption) {
+    await wa.sendText(phone, interruption);
     return;
   }
 
@@ -377,77 +352,36 @@ async function handleTurnoServicio(phone, msg, ses) {
   session.setState(phone, "turno_servicio_extra");
 
   const tip = getServiceTip(servicio);
-
-  // DINÁMICO: confirma servicio + pregunta extra en un mensaje
-  await wa.sendButtons(
-    phone,
-    `✅ ${servicio}, anotado.${tip}\n\n🔍 ¿Notaste algo más en tu vehículo? Algún ruidito, vibración, luz en el tablero... ¡Aprovechá la visita! 😊`,
-    [
-      { id: "srv_extra_si", title: "Sí, hay algo más ✏️" },
-      { id: "srv_extra_no", title: "No, solo eso ✅" },
-    ]
-  );
-}
-
-// "Otro servicio" → texto libre → pregunta extra
-async function handleTurnoOtroServicio(phone, msg, ses) {
-  const interruption = checkInterruption(msg.text, ses.state, ses.turnoData);
-  if (interruption) {
-    await wa.sendText(phone, interruption);
-    return;
-  }
-
-  const servicio = msg.text;
-  session.setTurnoData(phone, { servicio });
-  session.setState(phone, "turno_servicio_extra");
-
-  await wa.sendButtons(
-    phone,
-    `✅ ${servicio}, anotado. 👍\n\n🔍 ¿Hay algo más que hayas notado en tu vehículo? Ruiditos, vibraciones, luces... ¡Contanos! 😊`,
-    [
-      { id: "srv_extra_si", title: "Sí, hay algo más ✏️" },
-      { id: "srv_extra_no", title: "No, solo eso ✅" },
-    ]
-  );
-}
-
-// PASO 4: Servicio extra → km (TEXTO LIBRE)
-async function handleTurnoServicioExtra(phone, msg, ses) {
-  if (msg.id === "srv_extra_si") {
-    session.setState(phone, "turno_servicio_extra_input");
-    await wa.sendText(phone, "¡Dale, contame! Cualquier detalle nos sirve 🙌👇");
-    return;
-  }
-
-  // Dijo que no → directo a km (TEXTO LIBRE)
-  session.setState(phone, "turno_km");
   await wa.sendText(
     phone,
-    `📊 ¿En qué kilometraje está tu ${ses.turnoData.modelo}?\n\nEscribí el número exacto (ejemplo: 15234) 👇`
+    `✅ ${servicio}, anotado.${tip}\n\n🔍 ¿Notaste algo más en tu vehículo? Algún ruidito, vibración, luz en el tablero...\n\n(Si no, escribí *"no"*)👇`
   );
 }
 
-// Input de servicio extra → km (TEXTO LIBRE)
-async function handleTurnoServicioExtraInput(phone, msg, ses) {
+async function handleTurnoServicioExtra(phone, msg, ses) {
   const interruption = checkInterruption(msg.text, ses.state, ses.turnoData);
   if (interruption) {
     await wa.sendText(phone, interruption);
+    return;
+  }
+
+  const lower = msg.text.toLowerCase();
+  if (/^no$/i.test(lower.trim()) || /nada|todo bien|está bien/i.test(lower)) {
+    session.setState(phone, "turno_km");
+    await wa.sendText(phone, `📊 Perfecto. ¿En qué kilometraje está tu ${ses.turnoData.modelo}?\n\nEscribí el número exacto (ejemplo: 20050) 👇`);
     return;
   }
 
   const extra = msg.text;
   session.setTurnoData(phone, { servicioExtra: extra });
-  console.log(`📝 SERVICIO EXTRA: ${extra}`);
-
-  // DINÁMICO: confirma extra + pide km (TEXTO LIBRE)
   session.setState(phone, "turno_km");
+  console.log(`📝 SERVICIO EXTRA: ${extra}`);
   await wa.sendText(
     phone,
-    `📝 Anotado: "${extra}". Lo revisamos también. 🙌\n\n📊 ¿En qué kilometraje está tu ${ses.turnoData.modelo}?\n\nEscribí el número exacto (ejemplo: 15234) 👇`
+    `📝 Anotado: "${extra}". Lo revisamos también. 🙌\n\n📊 ¿En qué kilometraje está tu ${ses.turnoData.modelo}?\n\nEscribí el número exacto (ejemplo: 20050) 👇`
   );
 }
 
-// PASO 5: Km → patente (CON VALIDACIÓN)
 async function handleTurnoKm(phone, msg, ses) {
   const interruption = checkInterruption(msg.text, ses.state, ses.turnoData);
   if (interruption) {
@@ -455,13 +389,9 @@ async function handleTurnoKm(phone, msg, ses) {
     return;
   }
 
-  // Validar que sea un número
-  const kmText = msg.text.replace(/\D/g, ""); // saca todo lo que no sea número
+  const kmText = msg.text.replace(/\D/g, "");
   if (!kmText || kmText.length < 3) {
-    await wa.sendText(
-      phone,
-      "🤔 Necesito un número válido. Escribí el kilometraje exacto (ejemplo: 15234) 👇"
-    );
+    await wa.sendText(phone, "🤔 Necesito un número válido. Escribí el kilometraje exacto (ejemplo: 20050) 👇");
     return;
   }
 
@@ -470,15 +400,9 @@ async function handleTurnoKm(phone, msg, ses) {
   session.setState(phone, "turno_patente");
 
   const tip = getKmTip(km);
-
-  // DINÁMICO: confirma km + pide patente
-  await wa.sendText(
-    phone,
-    `📊 ${km}, perfecto.${tip}\n\nAhora necesito la *patente* de tu ${ses.turnoData.modelo} 👇`
-  );
+  await wa.sendText(phone, `📊 ${km}, perfecto.${tip}\n\nAhora necesito la *patente* de tu ${ses.turnoData.modelo} 👇`);
 }
 
-// PASO 6: Patente → días disponibles (BOTONES SIMPLES)
 async function handleTurnoPatente(phone, msg, ses) {
   const interruption = checkInterruption(msg.text, ses.state, ses.turnoData);
   if (interruption) {
@@ -498,75 +422,70 @@ async function handleTurnoPatente(phone, msg, ses) {
   session.setTurnoData(phone, { patente });
   session.setState(phone, "turno_dia");
 
-  // DINÁMICO: confirma patente + muestra días (BOTONES)
   await wa.sendText(
     phone,
-    `🔢 Patente *${patente}*, anotada. ✅\n\n📅 ¿Qué día te queda mejor para traer tu ${ses.turnoData.modelo}?`
+    `🔢 Patente *${patente}*, anotada. ✅\n\n📅 ¿Qué día te queda mejor?\n\n(Lunes, Martes, Miércoles, Jueves, Viernes, Sábado)\n\nEscribí el día 👇`
   );
-  
-  // Generar 4 días disponibles
-  await wa.sendButtons(phone, "Elegí un día:", [
-    { id: "dia_lunes", title: "📅 Lunes 10/02" },
-    { id: "dia_martes", title: "📅 Martes 11/02" },
-    { id: "dia_miercoles", title: "📅 Miércoles 12/02" },
-  ]);
 }
 
-// PASO 7: Día → horario
 async function handleTurnoDia(phone, msg, ses) {
-  if (msg.type === "text" && !msg.id) {
-    await wa.sendText(phone, "Elegí un día de los botones disponibles. 😊");
+  const interruption = checkInterruption(msg.text, ses.state, ses.turnoData);
+  if (interruption) {
+    await wa.sendText(phone, interruption);
     return;
   }
 
-  const dia = msg.text;
+  const dia = parseDia(msg.text);
+  if (!dia) {
+    await wa.sendText(phone, "🤔 No entendí el día. Escribí: *Lunes*, *Martes*, *Miércoles*, *Jueves*, *Viernes* o *Sábado* 👇");
+    return;
+  }
+
   session.setTurnoData(phone, { dia });
   session.setState(phone, "turno_horario");
-
-  // DINÁMICO: confirma día + pide horario
-  await wa.sendButtons(
-    phone,
-    `📆 ${dia}, bárbaro. ¿Mañana o tarde?`,
-    [
-      { id: "horario_manana", title: "🌅 Mañana (9:30-12:30)" },
-      { id: "horario_tarde", title: "🌇 Tarde (15:00-20:00)" },
-    ]
-  );
+  await wa.sendText(phone, `📆 ${dia}, bárbaro. ¿Preferís *mañana* o *tarde*? 👇`);
 }
 
-// PASO 8: Horario → resumen
 async function handleTurnoHorario(phone, msg, ses) {
-  if (msg.type === "text" && !msg.id) {
-    await wa.sendText(phone, "Tocá *🌅 Mañana* o *🌇 Tarde* para elegir el horario. 😊");
+  const interruption = checkInterruption(msg.text, ses.state, ses.turnoData);
+  if (interruption) {
+    await wa.sendText(phone, interruption);
     return;
   }
 
-  const horario = msg.text;
+  const horario = parseHorario(msg.text);
+  if (!horario) {
+    await wa.sendText(phone, "🤔 No entendí. Escribí *mañana* o *tarde* 👇");
+    return;
+  }
+
   session.setTurnoData(phone, { horario });
   session.setState(phone, "turno_confirmar");
 
   const td = ses.turnoData;
-
-  let resumen = `📋 ¡Listo! Mirá el resumen de tu turno:\n\n📍 Sucursal: *${td.sucursal}*\n🚗 Modelo: *${td.modelo}*\n🔧 Servicio: *${td.servicio}*`;
+  let resumen = `📋 ¡Listo! Mirá el resumen:\n\n📍 Sucursal: *${td.sucursal}*\n🚗 Modelo: *${td.modelo}*\n🔧 Servicio: *${td.servicio}*`;
 
   if (td.servicioExtra) {
-    resumen += `\n🔍 También revisar: *${td.servicioExtra}*`;
+    resumen += `\n🔍 También: *${td.servicioExtra}*`;
   }
 
-  resumen += `\n📊 Kilometraje: *${td.km}*\n🔢 Patente: *${td.patente}*\n📆 Día: *${td.dia}*\n🕐 Horario: *${horario}*\n\n¿Está todo bien? 😊`;
+  resumen += `\n📊 Kilometraje: *${td.km}*\n🔢 Patente: *${td.patente}*\n📆 Día: *${td.dia}*\n🕐 Horario: *${horario}*\n\n¿Está todo bien? Escribí *sí* para confirmar o *no* para modificar 👇`;
 
-  await wa.sendButtons(phone, resumen, [
-    { id: "turno_si", title: "✅ ¡Confirmar!" },
-    { id: "turno_modificar", title: "✏️ Modificar" },
-  ]);
+  await wa.sendText(phone, resumen);
 }
 
-// PASO 9: Confirmar → taxi
 async function handleTurnoConfirmar(phone, msg, ses) {
-  if (msg.id === "turno_modificar") {
+  const lower = msg.text.toLowerCase();
+
+  if (/no|modificar|cambiar|cancelar/i.test(lower)) {
     session.resetTurno(phone);
     session.setState(phone, "turno_sucursal");
-    await wa.sendSucursalPicker(phone, "📝 Dale, armemos de nuevo. ¿En qué sucursal?");
+    await wa.sendText(phone, "📝 Dale, armemos de nuevo. ¿En qué sucursal? (*Ushuaia* o *Río Grande*)");
+    return;
+  }
+
+  if (!/s[ií]|ok|dale|confirm/i.test(lower)) {
+    await wa.sendText(phone, "Escribí *sí* para confirmar o *no* para modificar 👇");
     return;
   }
 
@@ -576,52 +495,37 @@ async function handleTurnoConfirmar(phone, msg, ses) {
   );
 
   session.setState(phone, "turno_taxi");
-
-  // DINÁMICO: confirmación + pregunta taxi en secuencia rápida
   await wa.sendText(
     phone,
-    `✅ ¡Solicitud registrada con éxito! 🎉\n\nUn asesor de servicio se va a comunicar con vos para confirmar día y horario exacto.\n\n📞 Te contactamos en nuestro horario:\n🕐 L-V 9:30 a 12:30 / 15:00 a 20:00\n🕐 Sáb 9:30 a 12:30`
-  );
-
-  await wa.sendButtons(
-    phone,
-    "🚕 Una cosita más... ¿Vas a necesitar un taxi cuando dejes tu vehículo? Podemos coordinarlo para vos. 😊",
-    [
-      { id: "taxi_si", title: "✅ Sí, por favor" },
-      { id: "taxi_no", title: "❌ No, gracias" },
-    ]
+    `✅ ¡Solicitud registrada con éxito! 🎉\n\nUn asesor de servicio se va a comunicar con vos para confirmar día y horario exacto.\n\n📞 Te contactamos en nuestro horario:\n🕐 L-V 9:30 a 12:30 / 15:00 a 20:00\n🕐 Sáb 9:30 a 12:30\n\n🚕 Una cosa más... ¿Vas a necesitar un *taxi* cuando dejes tu vehículo?\n\n(Escribí *sí* o *no*) 👇`
   );
 }
 
-// PASO 10: Taxi → accesorios
 async function handleTurnoTaxi(phone, msg, ses) {
-  if (msg.id === "taxi_si") {
+  const lower = msg.text.toLowerCase();
+
+  if (/s[ií]|ok|dale|por favor/i.test(lower)) {
     session.setTurnoData(phone, { taxi: "Sí" });
     console.log(`🚕 TAXI solicitado por ${ses.name}`);
+    await wa.sendText(
+      phone,
+      `🚕 ¡Listo! El asesor coordina el taxi. 😊\n\n📦 Última cosa... ¿Te gustaría recibir el catálogo de *accesorios Mopar* para tu ${ses.turnoData.modelo}?\n\n(Fundas, alfombras, barras, cubrecarter...)\n\nEscribí *sí* o *no* 👇`
+    );
   } else {
     session.setTurnoData(phone, { taxi: "No" });
+    await wa.sendText(
+      phone,
+      `👍 Perfecto.\n\n📦 ¿Te gustaría recibir el catálogo de *accesorios Mopar* para tu ${ses.turnoData.modelo}?\n\n(Fundas, alfombras, barras, cubrecarter...)\n\nEscribí *sí* o *no* 👇`
+    );
   }
 
   session.setState(phone, "turno_accesorios");
-
-  const taxiMsg = msg.id === "taxi_si"
-    ? "🚕 ¡Listo! El asesor coordina el taxi. 😊"
-    : "👍 Perfecto.";
-
-  // DINÁMICO: confirma taxi + ofrece accesorios
-  await wa.sendButtons(
-    phone,
-    `${taxiMsg}\n\n📦 ¿Te gustaría recibir el catálogo de accesorios Mopar para tu ${ses.turnoData.modelo}? Fundas, alfombras, barras, cubrecarter... 🚗✨`,
-    [
-      { id: "acc_si", title: "✅ Sí, me interesa" },
-      { id: "acc_no", title: "❌ No, gracias" },
-    ]
-  );
 }
 
-// PASO 11: Accesorios → cierre
 async function handleTurnoAccesorios(phone, msg, ses) {
-  if (msg.id === "acc_si") {
+  const lower = msg.text.toLowerCase();
+
+  if (/s[ií]|ok|dale|me interesa/i.test(lower)) {
     console.log(`📦 ACCESORIOS solicitados por ${ses.name} para ${ses.turnoData.modelo}`);
     await wa.sendText(phone, "📦 ¡Genial! El asesor te manda el catálogo junto con la confirmación del turno. 😊");
   } else {
@@ -629,12 +533,13 @@ async function handleTurnoAccesorios(phone, msg, ses) {
   }
 
   session.setState(phone, "main_menu");
-  await wa.sendPostAction(phone, "¿Algo más en lo que te pueda ayudar?");
+  await wa.sendText(phone, "¿Algo más en lo que te pueda ayudar? (escribí *menú* para ver opciones)");
 }
 
 // ═══════════════════════════════════════════
-// FLUJO: ESTADO DE REPARACIÓN
+// OTROS FLUJOS
 // ═══════════════════════════════════════════
+
 async function handleEstadoInput(phone, msg, ses) {
   const interruption = checkInterruption(msg.text, ses.state, ses.turnoData);
   if (interruption) {
@@ -646,126 +551,100 @@ async function handleEstadoInput(phone, msg, ses) {
   console.log(`🔍 CONSULTA ESTADO | ${ses.name} (${phone}): ${input}`);
 
   session.setState(phone, "estado_extra");
-  await wa.sendButtons(
+  await wa.sendText(
     phone,
-    `🔍 Buscando *${input}*...\n\n✅ Tu vehículo está en taller.\n📊 Estado: *En reparación*\n🔧 Trabajos: Cambio de aceite + filtros\n⏱️ Estimado: Listo hoy a las 18:00 hs\n\n💡 ¿Querés que revisemos algo adicional en la misma visita?`,
-    [
-      { id: "estado_extra_si", title: "Sí, hay algo más ✏️" },
-      { id: "estado_extra_no", title: "No, está bien así ✅" },
-    ]
+    `🔍 Buscando *${input}*...\n\n✅ Tu vehículo está en taller.\n📊 Estado: *En reparación*\n🔧 Trabajos: Cambio de aceite + filtros\n⏱️ Estimado: Listo hoy a las 18:00 hs\n\n¿Querés agregar algo más para revisar? (escribí *sí* o *no*) 👇`
   );
 }
 
 async function handleEstadoExtra(phone, msg, ses) {
-  if (msg.id === "estado_extra_no") {
+  const lower = msg.text.toLowerCase();
+
+  if (/no|nada|est[aá] bien/i.test(lower)) {
     session.setState(phone, "main_menu");
-    await wa.sendPostAction(phone, "¡Perfecto! Te avisamos cuando esté listo. ¿Algo más?");
+    await wa.sendText(phone, "¡Perfecto! Te avisamos cuando esté listo. 😊\n\n¿Algo más? (escribí *menú*)");
     return;
   }
 
-  session.setState(phone, "estado_extra_input");
-  await wa.sendText(phone, "¡Dale! Contame qué más querés que revisemos 👇");
+  if (/s[ií]|agregar|revisar/i.test(lower)) {
+    await wa.sendText(phone, "¡Dale! Contame qué más querés que revisemos 👇");
+    const extra = msg.text;
+    console.log(`📝 EXTRA reparación de ${ses.name}: ${extra}`);
+    await wa.sendText(phone, `📝 ¡Anotado! "${extra}"\n\nSe lo pasamos al asesor. ¡Gracias! 🙌`);
+    session.setState(phone, "main_menu");
+    await wa.sendText(phone, "¿Algo más? (escribí *menú*)");
+    return;
+  }
+
+  await wa.sendText(phone, "Escribí *sí* si querés agregar algo o *no* si está todo bien 👇");
 }
 
-async function handleEstadoExtraInput(phone, msg, ses) {
+async function handleInfoInput(phone, msg, ses) {
+  const lower = msg.text.toLowerCase();
+
+  if (/programado/i.test(lower)) {
+    await wa.sendText(
+      phone,
+      `🔧 *Mantenimiento Programado*\n\n✅ Cada *10.000 km o 1 año* (lo que ocurra primero)\n\nIncluye cambios de aceite y filtros, inspección completa según grilla del modelo, ajustes y diagnóstico.\n\n🛡️ Hacerlo en red oficial *preserva tu garantía*.`
+    );
+  } else if (/r[aá]pido/i.test(lower)) {
+    await wa.sendText(
+      phone,
+      `⚡ *Servicios Rápidos*\n\nCambio aceite y filtro, revisión de niveles, batería, neumáticos, rotación.\n\n⏱️ Se hacen en el menor tiempo posible para que no pierdas el día.`
+    );
+  } else if (/lubricante|mopar|aceite/i.test(lower)) {
+    await wa.sendText(
+      phone,
+      `🛢️ *Lubricantes Mopar*\n\nAceites originales de fábrica para FIAT.\n\n✅ Calidad garantizada\n✅ Intervalos según manual\n✅ Preservan garantía`
+    );
+  } else if (/flexcare/i.test(lower)) {
+    await wa.sendText(
+      phone,
+      `💸 *FlexCare*\n\nDescuentos de *hasta 35%* en mantenimiento.\n\n✅ Fijás costos futuros\n✅ Mano de obra especializada\n✅ Repuestos Mopar\n\n¡La forma más inteligente de ahorrar! 💰`
+    );
+  } else {
+    await wa.sendText(phone, "🤔 ¿Sobre qué querés saber? Escribí: *programado*, *rápidos*, *lubricantes* o *flexcare* 👇");
+    return;
+  }
+
+  session.setState(phone, "main_menu");
+  await wa.sendText(phone, "¿Algo más? (escribí *menú*)");
+}
+
+async function handleMVPInput(phone, msg, ses) {
+  const lower = msg.text.toLowerCase();
+  let pack = "";
+
+  if (/2|dos/.test(lower)) pack = "2 revisiones";
+  else if (/3|tres/.test(lower)) pack = "3 revisiones";
+  else if (/4|cuatro/.test(lower)) pack = "4 revisiones";
+  else {
+    await wa.sendText(phone, "🤔 Escribí *2*, *3* o *4* según el pack que te interese 👇");
+    return;
+  }
+
+  console.log(`💰 MVP ${pack} solicitado por ${ses.name}`);
+  await wa.sendText(phone, `📦 ¡Excelente! Pack de *${pack}* a precio fijo.\n\nUn asesor te contacta con precios actualizados. 😊`);
+  session.setState(phone, "main_menu");
+  await wa.sendText(phone, "¿Algo más? (escribí *menú*)");
+}
+
+async function handleRepuestosModelo(phone, msg, ses) {
   const interruption = checkInterruption(msg.text, ses.state, ses.turnoData);
   if (interruption) {
     await wa.sendText(phone, interruption);
     return;
   }
 
-  const extra = msg.text;
-  console.log(`📝 EXTRA reparación de ${ses.name}: ${extra}`);
-
-  await wa.sendText(phone, `📝 ¡Anotado! "${extra}"\n\nSe lo pasamos al asesor. ¡Gracias! 🙌`);
-  session.setState(phone, "main_menu");
-  await wa.sendPostAction(phone, "¿Algo más?");
-}
-
-// ═══════════════════════════════════════════
-// FLUJO: INFO DE MANTENIMIENTO
-// ═══════════════════════════════════════════
-async function handleInfoMenu(phone, msg, ses) {
-  if (msg.id === "volver_menu") {
-    session.setState(phone, "main_menu");
-    await wa.sendMainMenu(phone);
+  const modelo = parseModelo(msg.text);
+  if (!modelo) {
+    await wa.sendText(phone, "🤔 No reconocí ese modelo. Escribí de nuevo (Argo, Cronos, Pulse, etc) 👇");
     return;
   }
 
-  const responses = {
-    info_mant_prog: `🔧 *Mantenimiento Programado*\n\n✅ Cada *10.000 km o 1 año* (lo que ocurra primero)\n\nIncluye cambios de aceite y filtros, inspección completa según grilla del modelo, ajustes y diagnóstico.\n\n🛡️ Hacerlo en red oficial *preserva tu garantía*.`,
-    info_srv_rapido: `⚡ *Servicios Rápidos*\n\nCambio aceite y filtro, revisión de niveles, batería, neumáticos, rotación.\n\n⏱️ Se hacen en el menor tiempo posible para que no pierdas el día.`,
-    info_srv_esenciales: `🏗️ *Servicios Esenciales*\n\nTren delantero, suspensión, frenos, transmisión, refrigeración, aire acondicionado.\n\n⚠️ Si tu vehículo está en garantía, siempre usá *repuestos Mopar* para no perderla.`,
-    info_lubricantes: `🛢️ *Lubricantes Mopar*\n\nAceites originales de fábrica para FIAT.\n\n✅ Calidad garantizada\n✅ Intervalos según manual\n✅ Preservan garantía`,
-    info_flexcare: `💸 *FlexCare*\n\nDescuentos de *hasta 35%* en mantenimiento.\n\n✅ Fijás costos futuros\n✅ Mano de obra especializada\n✅ Repuestos Mopar\n\n¡La forma más inteligente de ahorrar! 💰`,
-  };
-
-  const response = responses[msg.id] || "No tengo info sobre eso todavía. ¿Querés hablar con un asesor?";
-  await wa.sendText(phone, response);
-  session.setState(phone, "main_menu");
-  await wa.sendPostAction(phone, "¿Algo más?");
-}
-
-// ═══════════════════════════════════════════
-// FLUJO: MVP
-// ═══════════════════════════════════════════
-async function handleMVPOption(phone, msg, ses) {
-  let pack = "";
-  if (msg.id === "mvp_2") pack = "2 revisiones";
-  if (msg.id === "mvp_3") pack = "3 revisiones";
-  if (msg.id === "mvp_4") pack = "4 revisiones";
-
-  console.log(`💰 MVP ${pack} solicitado por ${ses.name}`);
-
-  await wa.sendText(
-    phone,
-    `📦 ¡Excelente! Pack de *${pack}* a precio fijo.\n\nUn asesor te contacta con precios actualizados. 😊`
-  );
-  session.setState(phone, "main_menu");
-  await wa.sendPostAction(phone, "¿Algo más?");
-}
-
-// ═══════════════════════════════════════════
-// FLUJO: REPUESTOS
-// ═══════════════════════════════════════════
-async function handleRepuestosMenu(phone, msg, ses) {
-  if (msg.id === "rep_catalogo") {
-    await wa.sendText(
-      phone,
-      "📕 Tenemos catálogos de accesorios, repuestos originales y lubricantes Mopar.\n\nUn asesor te puede mandar el catálogo específico para tu modelo."
-    );
-    await wa.sendButtons(phone, "¿Te conecto con un asesor?", [
-      { id: "menu_asesor", title: "👤 Sí, conectame" },
-      { id: "post_menu", title: "🏠 Menú" },
-    ]);
-    session.setState(phone, "main_menu");
-    return;
-  }
-
-  if (msg.id === "rep_consulta" || msg.id === "rep_accesorio") {
-    session.setState(phone, "repuestos_modelo");
-    await wa.sendList(phone, "🚗 ¿Para qué modelo FIAT?", "🚗 Elegir modelo", [
-      {
-        title: "Modelos",
-        rows: [
-          { id: "modelo_600", title: "FIAT 600" },
-          { id: "modelo_argo", title: "Argo" },
-          { id: "modelo_cronos", title: "Cronos" },
-          { id: "modelo_mobi", title: "Mobi" },
-          { id: "modelo_pulse", title: "Pulse" },
-          { id: "modelo_strada", title: "Strada" },
-          { id: "modelo_toro", title: "Toro" },
-        ],
-      },
-    ]);
-  }
-}
-
-async function handleRepuestosModelo(phone, msg, ses) {
-  const modelo = msg.text;
   session.setTurnoData(phone, { modelo });
   session.setState(phone, "repuestos_detalle");
-  await wa.sendText(phone, `🚗 ${modelo}. Contame qué repuesto o accesorio necesitás 👇`);
+  await wa.sendText(phone, `🚗 ${modelo}. ¿Qué repuesto o accesorio necesitás? Contame 👇`);
 }
 
 async function handleRepuestosDetalle(phone, msg, ses) {
@@ -783,12 +662,9 @@ async function handleRepuestosDetalle(phone, msg, ses) {
     `📝 Anotado: "${detalle}" para *${ses.turnoData.modelo}*.\n\nUn asesor te contacta con disponibilidad y precio. ¡Solo repuestos Mopar! 🔧`
   );
   session.setState(phone, "main_menu");
-  await wa.sendPostAction(phone, "¿Algo más?");
+  await wa.sendText(phone, "¿Algo más? (escribí *menú*)");
 }
 
-// ═══════════════════════════════════════════
-// FLUJO: RECALL
-// ═══════════════════════════════════════════
 async function handleRecallInput(phone, msg, ses) {
   const interruption = checkInterruption(msg.text, ses.state, ses.turnoData);
   if (interruption) {
@@ -804,82 +680,80 @@ async function handleRecallInput(phone, msg, ses) {
   const vin = msg.text.toUpperCase();
   console.log(`📋 RECALL | ${ses.name}: VIN ${vin}`);
 
-  await wa.sendText(
-    phone,
-    `🔍 Consultando VIN *${vin}*...\n\n✅ ¡Buenas noticias! Tu vehículo *no tiene recalls pendientes*. 😊`
-  );
+  await wa.sendText(phone, `🔍 Consultando VIN *${vin}*...\n\n✅ ¡Buenas noticias! Tu vehículo *no tiene recalls pendientes*. 😊`);
   session.setState(phone, "main_menu");
-  await wa.sendPostAction(phone, "¿Algo más?");
+  await wa.sendText(phone, "¿Algo más? (escribí *menú*)");
 }
 
-// ═══════════════════════════════════════════
-// FLUJO: GARANTÍA
-// ═══════════════════════════════════════════
-async function handleGarantiaMenu(phone, msg, ses) {
-  switch (msg.id) {
-    case "gar_cobertura":
-      await wa.sendText(
-        phone,
-        `🛡️ *Garantía de fábrica FIAT:*\n\n✅ Cubre defectos de fabricación y materiales\n✅ Se mantiene con services en red oficial\n✅ Con repuestos originales Mopar\n\n💡 Cumplir con los services programados *preserva tu garantía*.`
-      );
-      await wa.sendButtons(phone, "¿Querés consultar con un asesor?", [
-        { id: "menu_asesor", title: "👤 Sí, consultemos" },
-        { id: "post_menu", title: "🏠 Menú" },
-      ]);
-      session.setState(phone, "main_menu");
-      break;
-    case "gar_eurorepar":
-      session.setState(phone, "garantia_eurorepar");
-      await wa.sendButtons(
-        phone,
-        "⚠️ *Eurorepar y Garantía:*\n\n❌ En garantía + Eurorepar = *pierde garantía*\n✅ Fuera de garantía → Eurorepar es excelente (6 meses garantía propia)\n🛡️ En garantía → siempre *Mopar*\n\n¿Tu vehículo está en garantía?",
-        [
-          { id: "gar_si", title: "Sí, en garantía" },
-          { id: "gar_no", title: "No, ya salió" },
-        ]
-      );
-      break;
-    case "gar_reclamo":
-      session.setState(phone, "asesor_sucursal");
-      await wa.sendSucursalPicker(phone, "📝 Lo vamos a resolver. Te conecto con un asesor. ¿De qué sucursal?");
-      break;
-    default:
-      session.setState(phone, "main_menu");
-      await wa.sendMainMenu(phone);
-  }
-}
+async function handleGarantiaInput(phone, msg, ses) {
+  const lower = msg.text.toLowerCase();
 
-async function handleGarantiaEurorepar(phone, msg, ses) {
-  if (msg.id === "gar_si") {
-    await wa.sendText(phone, "🛡️ ¡Fundamental seguir con *repuestos Mopar*! En nuestro taller trabajamos con originales. 😊");
+  if (/cobertura|cubre|qu[eé]/i.test(lower)) {
+    await wa.sendText(
+      phone,
+      `🛡️ *Garantía de fábrica FIAT:*\n\n✅ Cubre defectos de fabricación y materiales\n✅ Se mantiene con services en red oficial\n✅ Con repuestos originales Mopar\n\n💡 Cumplir con los services programados *preserva tu garantía*.`
+    );
+  } else if (/eurorepar/i.test(lower)) {
+    await wa.sendText(
+      phone,
+      `⚠️ *Eurorepar y Garantía:*\n\n❌ En garantía + Eurorepar = *pierde garantía*\n✅ Fuera de garantía → Eurorepar es excelente (6 meses garantía propia)\n🛡️ En garantía → siempre *Mopar*`
+    );
+  } else if (/reclamo/i.test(lower)) {
+    session.setState(phone, "asesor_sucursal");
+    await wa.sendText(phone, "📝 Lo vamos a resolver. ¿De qué sucursal? (*Ushuaia* o *Río Grande*)");
+    return;
   } else {
-    await wa.sendText(phone, "👍 *Eurorepar* es excelente opción con *6 meses de garantía* y gran relación precio-calidad. 🔧");
-  }
-  await wa.sendButtons(phone, "¿Te gustaría agendar un turno?", [
-    { id: "menu_turno", title: "📅 Agendar" },
-    { id: "post_menu", title: "🏠 Menú" },
-  ]);
-  session.setState(phone, "main_menu");
-}
-
-// ═══════════════════════════════════════════
-// FLUJO: ASESOR
-// ═══════════════════════════════════════════
-async function handleAsesorSucursal(phone, msg, ses) {
-  if (!msg.id || !msg.id.startsWith("suc_")) {
-    await wa.sendSucursalPicker(phone, "Elegí una sucursal tocando el botón 👇");
+    await wa.sendText(phone, "🤔 ¿Sobre qué querés saber? Escribí: *cobertura*, *eurorepar* o *reclamo* 👇");
     return;
   }
 
-  const suc = parseSucursal(msg.id);
+  session.setState(phone, "main_menu");
+  await wa.sendText(phone, "¿Algo más? (escribí *menú*)");
+}
+
+async function handleAsesorSucursal(phone, msg, ses) {
+  const interruption = checkInterruption(msg.text, ses.state, ses.turnoData);
+  if (interruption) {
+    await wa.sendText(phone, interruption);
+    return;
+  }
+
+  const suc = parseSucursal(msg.text);
+  if (!suc) {
+    await wa.sendText(phone, "🤔 ¿*Ushuaia* o *Río Grande*? 👇");
+    return;
+  }
+
   console.log(`👤 ASESOR | ${ses.name} (${phone}) | ${suc}`);
 
-  await wa.sendText(
-    phone,
-    `👤 ¡Listo! Un asesor de *${suc}* te contacta a la brevedad.\n\n📞 L-V 9:30-12:30 / 15:00-20:00 • Sáb 9:30-12:30`
-  );
+  await wa.sendText(phone, `👤 ¡Listo! Un asesor de *${suc}* te contacta a la brevedad.\n\n📞 L-V 9:30-12:30 / 15:00-20:00 • Sáb 9:30-12:30`);
   session.setState(phone, "main_menu");
-  await wa.sendPostAction(phone, "¿Algo más?");
+  await wa.sendText(phone, "¿Algo más? (escribí *menú*)");
 }
 
 module.exports = { handleIncomingMessage };
+```
+
+---
+
+## ✅ **CAMBIOS PRINCIPALES:**
+
+1. ✅ **TODO texto libre** - Sin listas ni botones complejos
+2. ✅ **Interpretación inteligente** de sucursal, modelo, día, horario
+3. ✅ **Validaciones** mantenidas (patente, KM, VIN)
+4. ✅ **TODOS los flujos** mantenidos (taxi, accesorios, tips)
+5. ✅ **Reset con "hola", "menu"** funcionando
+6. ✅ **Conversacional y amable**
+7. ✅ **Nunca se traba**
+
+---
+
+## 🚀 **SIGUIENTE PASO:**
+
+1. **Reemplazá** todo el contenido de `messageHandler.js` con este código
+2. Guardá (Ctrl+S)
+3. En la terminal:
+```
+git add src\messageHandler.js
+git commit -m "Bot conversacional v4.0 - sin listas ni botones"
+git push
